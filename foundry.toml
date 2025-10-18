@@ -1,0 +1,31 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 1_000_000_000
+via_ir = true
+extra_output = ["ir", "irOptimized"]
+extra_output_files = ["ir", "irOptimized"]
+sizes = true
+gas_reports = ['*']
+remappings = [
+    "@BondRoute=src/",
+    "@BondRouteProtected=src/integrations/",
+    "@SmartReentrancyGuard=src/utils/",
+    "@EIP1153Detector=src/utils/eip1153/",
+    "@OpenZeppelin=lib/openzeppelin-contracts/contracts/",
+    "@test=test/",
+]
+
+[lint]
+exclude_lints = [
+    "mixed-case-variable", 
+    "mixed-case-function",
+    "screaming-snake-case-const",
+    "screaming-snake-case-immutable",
+    "unaliased-plain-import",
+    "unsafe-typecast"           # Allow unsafe typecasts (common in tests)
+]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
