@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import { IERC20 } from "@OpenZeppelin/token/ERC20/IERC20.sol";
 import "../IBondRoute.sol";
 import "./IBondRouteProtected.sol";
-import { TokenTransferFailed, InsufficientFunds } from "../provider/IProvider.sol";
+import { TokenTransferFailed, InsufficientFunds, PushedFundsOverflow } from "../provider/IProvider.sol";
 
 
 /**
@@ -241,13 +241,32 @@ abstract contract BondRouteProtected is IBondRouteProtected {
      * @notice Push tokens to BondRoute funding
      * @param token Address of token to push
      * @param amount Amount of tokens to push
+     * @dev Detects overflow manipulation attacks and converts to PossiblyBondPicking
      */
     function BondRoute_push( IERC20 token, uint256 amount ) internal
     {
         // *NOTE*  -  Always sets infinite approval to prevent multiple calls from overwriting the previous push since it could brick the transaction and the user's stake.
         token.approve( address(BondRoute), type(uint256).max );
 
-        BondRoute.push_funds( token, amount );
+        try BondRoute.push_funds( token, amount ) { }
+        catch( bytes memory _error )
+        {
+            // Check for PushedFundsOverflow which could be manipulated by attacker
+            if(  _error.length >= 4  )
+            {
+                // forge-lint: disable-next-line(unsafe-typecast)  -  Safe bc checked length is >= 4.
+                bytes4 error_selector  =  bytes4(_error);
+                if(  error_selector == PushedFundsOverflow.selector  )
+                {
+                    revert PossiblyBondPicking( "Push overflow manipulation" );
+                }
+            }
+            
+            // Re-throw other errors unchanged (including OOG which will be caught by BondRoute core)
+            assembly ("memory-safe") {
+                revert( add( _error, 0x20 ), mload( _error ) )
+            }
+        }
     }
 
 
