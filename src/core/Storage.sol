@@ -265,57 +265,61 @@ abstract contract Storage is SmartReentrancyGuard {
         {
             // Iterate over all available tokens.
             address protocol_treasury  =  _protocol_treasury;
-            for(  uint256 i = available_tokens_length  ;  i > 0  ;  i--  )
+
+            unchecked  // *GAS SAVING*  -  Safe bc outer loop checks `i > 0`, inner loop checks `j < funding_sources_length`, and subtractions are protected by min() logic.
             {
-                address token                           =   address(uint160(_read_smart_var( _AVAILABLE_TOKENS__BASE_SLOT + i )));
-                uint256 token_total_amount_slot         =   _TOKEN_TOTAL_AMOUNT__SLOT ^ uint256(uint160(token));
-                uint256 accumulated_fees_slot           =   _TOKEN_ACCUMULATED_FEES__SLOT ^ uint256(uint160(token));
-                
-                uint256 remaining_fee_to_collect        =   _read_smart_var( accumulated_fees_slot );
-                
-                uint256 funding_sources_base            =   _FUNDING_SOURCES__BASE_SLOT ^ (uint256(uint160(token)) << 32);
-                uint256 packed_seen_flag_and_length     =   _read_smart_var( funding_sources_base );
-                uint256 funding_sources_length          =   packed_seen_flag_and_length & _LENGTH_EXTRACTION_MASK;
-                
-                // Transfer from each funding source - first collect protocol fees, then send remainder to beneficiary.
-                for(  uint256 j = 0  ;  j < funding_sources_length  ;  j++  )
+                for(  uint256 i = available_tokens_length  ;  i > 0  ;  i--  )
                 {
-                    uint256 entry_index     =   j * 2;
-                    address entry_source    =   address(uint160(_read_smart_var( funding_sources_base + entry_index + 1 )));
-                    uint256 entry_amount    =   _read_smart_var( funding_sources_base + entry_index + 2 );
-                    if(  entry_amount == 0  )  continue;  // Continue on next funding source.
+                    address token                           =   address(uint160(_read_smart_var( _AVAILABLE_TOKENS__BASE_SLOT + i )));
+                    uint256 token_total_amount_slot         =   _TOKEN_TOTAL_AMOUNT__SLOT ^ uint256(uint160(token));
+                    uint256 accumulated_fees_slot           =   _TOKEN_ACCUMULATED_FEES__SLOT ^ uint256(uint160(token));
                     
-                    if(  remaining_fee_to_collect > 0  )
+                    uint256 remaining_fee_to_collect        =   _read_smart_var( accumulated_fees_slot );
+                    
+                    uint256 funding_sources_base            =   _FUNDING_SOURCES__BASE_SLOT ^ (uint256(uint160(token)) << 32);
+                    uint256 packed_seen_flag_and_length     =   _read_smart_var( funding_sources_base );
+                    uint256 funding_sources_length          =   packed_seen_flag_and_length & _LENGTH_EXTRACTION_MASK;
+                    
+                    // Transfer from each funding source - first collect protocol fees, then send remainder to beneficiary.
+                    for(  uint256 j = 0  ;  j < funding_sources_length  ;  j++  )
                     {
-                        // Take up to what is available on this source.
-                        uint256 fee_from_this_source  =  ( entry_amount > remaining_fee_to_collect )  ?  remaining_fee_to_collect  :  entry_amount;
+                        uint256 entry_index     =   j * 2;
+                        address entry_source    =   address(uint160(_read_smart_var( funding_sources_base + entry_index + 1 )));
+                        uint256 entry_amount    =   _read_smart_var( funding_sources_base + entry_index + 2 );
+                        if(  entry_amount == 0  )  continue;  // Continue on next funding source.
+                        
+                        if(  remaining_fee_to_collect > 0  )
+                        {
+                            // Take up to what is available on this source.
+                            uint256 fee_from_this_source  =  ( entry_amount > remaining_fee_to_collect )  ?  remaining_fee_to_collect  :  entry_amount;
+                            _safe_transfer_from({
+                                token:      IERC20(token),
+                                from:       entry_source,
+                                to:         protocol_treasury,
+                                amount:     fee_from_this_source
+                            });
+                            
+                            remaining_fee_to_collect  =  remaining_fee_to_collect - fee_from_this_source;
+                            entry_amount  =  entry_amount - fee_from_this_source;
+                            if(  entry_amount == 0  )  continue;  // Continue on next funding source.
+                        }
+                        
+                        // Transfer remaining amount to user.
                         _safe_transfer_from({
                             token:      IERC20(token),
                             from:       entry_source,
-                            to:         protocol_treasury,
-                            amount:     fee_from_this_source
+                            to:         user,
+                            amount:     entry_amount
                         });
-                        
-                        remaining_fee_to_collect  =  remaining_fee_to_collect - fee_from_this_source;
-                        entry_amount  =  entry_amount - fee_from_this_source;
-                        if(  entry_amount == 0  )  continue;  // Continue on next funding source.
                     }
                     
-                    // Transfer remaining amount to user.
-                    _safe_transfer_from({
-                        token:      IERC20(token),
-                        from:       entry_source,
-                        to:         user,
-                        amount:     entry_amount
-                    });
+                    // *SECURITY*  -  Clear token-specific vars bc:
+                    //                1) Resets state for multiple bond executions if on a multicall.
+                    //                2) State would persist if no transient storage (EIP-1153) support on this chain.
+                    _write_smart_var( funding_sources_base, 0 );              // Reset token-specific `packed_seen_flag_and_length`.
+                    _write_smart_var( token_total_amount_slot, 0 );           // Reset token-specific total amount.
+                    _write_smart_var( accumulated_fees_slot, 0 );             // Reset token-specific accumulated fees.
                 }
-                
-                // *SECURITY*  -  Clear token-specific vars bc:
-                //                1) Resets state for multiple bond executions if on a multicall.
-                //                2) State would persist if no transient storage (EIP-1153) support on this chain.
-                _write_smart_var( funding_sources_base, 0 );              // Reset token-specific `packed_seen_flag_and_length`.
-                _write_smart_var( token_total_amount_slot, 0 );           // Reset token-specific total amount.
-                _write_smart_var( accumulated_fees_slot, 0 );             // Reset token-specific accumulated fees.
             }
             
             // *SECURITY*  -  Clear var for same reasons as above.
