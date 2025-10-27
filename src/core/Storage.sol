@@ -205,7 +205,7 @@ abstract contract Storage is SmartReentrancyGuard {
         {
             TokenAmount calldata funding  =  execution_data.fundings[ i ];
 
-            uint256 remaining_stake;
+            uint256 remaining_stake  =  0;
             uint k  =  stakes.index_of( funding.token );
             if(  k != TokenSearch.INDEX_NOT_FOUND  )   remaining_stake  =  stakes[ k ].amount;
             
