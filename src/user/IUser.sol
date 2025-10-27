@@ -128,7 +128,7 @@ interface IUser {
      * @param stakes Array of ERC20 tokens and amounts to stake (max of 255 entries)
      * @param creation_deadline Makes the call revert with `BondCreationPastDeadline` after deadline. Use 0 for no deadline.
      * @dev Reverts with error `Invalid` if `commitment_proof` is zero.
-     *      Reverts with error `TooManyStakes` if more than 255 tokens in `stakes` array.
+     *      Reverts with error `TooManyStakes` if more than `Config.MAX_STAKES_PER_BOND` tokens in `stakes` array.
      *      Reverts with error `BondCreationPastDeadline` if called after `creation_deadline`.
      *      Reverts with error `TokenTransferFailed` if any stake transfer fails.
      */
