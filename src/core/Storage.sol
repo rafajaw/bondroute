@@ -440,8 +440,6 @@ abstract contract Storage is SmartReentrancyGuard {
         uint256 current_accumulated_fees    =   _read_smart_var( accumulated_fees_slot );
         uint256 total_available             =   gross_total - current_accumulated_fees;
 
-        // Support type(uint256).max as "pull all available" sentinel value.
-        if(  amount == type(uint256).max  )   amount  =  total_available;
 
         if(  amount > total_available  )
         {

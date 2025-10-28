@@ -273,7 +273,7 @@ abstract contract BondRouteProtected is IBondRouteProtected {
     /**
      * @notice Pull tokens from BondRoute funding
      * @param token Address of token to pull
-     * @param amount Amount of tokens to pull (use type(uint256).max to pull all available)
+     * @param amount Exact amount of tokens to pull
      * @return net_amount The calculated net amount after BondRoute's 0.01% fee deduction
      * @dev Reverts if funds were not approved to BondRoute
      *      Detects transfer manipulation attacks and converts to PossiblyBondPicking
@@ -307,7 +307,7 @@ abstract contract BondRouteProtected is IBondRouteProtected {
     /**
      * @notice Send tokens from BondRoute funding to beneficiary
      * @param token Address of token to send
-     * @param amount Amount of tokens to send (use type(uint256).max to send all available)
+     * @param amount Exact amount of tokens to send
      * @param beneficiary Address to receive the tokens
      * @return net_amount The calculated net amount after BondRoute's 0.01% fee deduction
      * @dev Reverts if funds were not approved to BondRoute

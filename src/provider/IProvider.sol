@@ -101,7 +101,7 @@ interface IProvider {
     /**
      * @notice Pull tokens from virtual escrow (PERFORMS ACTUAL TRANSFERS)
      * @param token The token to pull from virtual escrow
-     * @param amount The amount to pull (BondRoute charges 0.01% fee on this amount). Use type(uint256).max to pull all available.
+     * @param amount The exact amount to pull (BondRoute charges 0.01% fee on this amount)
      * @return net_amount The calculated net amount after BondRoute's 0.01% fee deduction
      * @dev This performs actual token transfers using LIFO (last in, first out) from
      *      all sources that previously called push_funds() for this token.
@@ -129,7 +129,7 @@ interface IProvider {
     /**
      * @notice Send tokens from virtual escrow to beneficiary (PERFORMS ACTUAL TRANSFERS)
      * @param token The token to send from virtual escrow
-     * @param amount The amount to send (BondRoute charges 0.01% fee on this amount). Use type(uint256).max to send all available.
+     * @param amount The exact amount to send (BondRoute charges 0.01% fee on this amount)
      * @param beneficiary The address to receive the tokens
      * @return net_amount The calculated net amount after BondRoute's 0.01% fee deduction
      * @dev Same as pull_funds() but sends tokens to the specified beneficiary instead
