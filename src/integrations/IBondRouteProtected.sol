@@ -146,6 +146,9 @@ interface IBondRouteProtected {
      *      - Return zero values for constraints you don't need
      *      - Use `preferred_stake_token` and `preferred_fundings` to inform your requirements
      *      
+     *      *SECURITY*  -  This function MUST revert for unknown calls (invalid calldata or unrecognized function selectors).
+     *                     This prevents users from creating bonds to non-existent functions and potentially locking stake.
+     *      
      *      Example Constraints:
      *      - Time restrictions: Trading hours, maintenance windows
      *      - Staking requirements: Minimum stake for high-value operations
