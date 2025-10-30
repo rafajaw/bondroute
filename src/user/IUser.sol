@@ -55,7 +55,7 @@ struct Bond {                           // *GAS SAVING*  -  The bond struct occu
     bytes21 commitment_proof;           // 21 bytes - Hash binding user to specific execution data (2^84 collision resistance - secure for 101-day bond window)
     uint40 created_at_timestamp;        // 5 bytes - Block timestamp when bond was created (until year 36,812)
     uint40 created_at_block_number;     // 5 bytes - Block number when bond was created (1.1T blocks - handles fastest chains)
-    uint8 count_of_staked_tokens;       // 1 byte - Total count of staked tokens for this bond (max 255 different tokens)
+    uint8 count_of_staked_tokens;       // 1 byte - Total count of staked tokens for this bond (max Config.MAX_STAKES_PER_BOND different tokens)
 }
 
 /**
@@ -125,7 +125,7 @@ interface IUser {
     /**
      * @notice Create a bond with multiple token stakes
      * @param commitment_proof The value returned by `__OFF_CHAIN__calculate_commitment_proof()`
-     * @param stakes Array of ERC20 tokens and amounts to stake (max of 255 entries)
+     * @param stakes Array of ERC20 tokens and amounts to stake (max of Config.MAX_STAKES_PER_BOND entries)
      * @param creation_deadline Makes the call revert with `BondCreationPastDeadline` after deadline. Use 0 for no deadline.
      * @dev Reverts with error `Invalid` if `commitment_proof` is zero.
      *      Reverts with error `TooManyStakes` if more than `Config.MAX_STAKES_PER_BOND` tokens in `stakes` array.
