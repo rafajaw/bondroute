@@ -57,14 +57,22 @@ abstract contract Core is Storage, EIP712 {
             count_of_staked_tokens:     uint8(stakes.length)
         });
         
-        for(  uint8 i = 0  ;  i < stakes.length  ;  i++  )
+        IERC20[] memory seen_tokens  =  new IERC20[]( stakes.length );  // *GAS SAVING*  -  Track seen tokens in memory to prevent duplicate entries for the same token.
+        uint256 count_of_seen_tokens  =  0;
+
+        for(  uint8 i = 0  ;  i < stakes.length  ;  i  =  i + 1  )
         {
             TokenAmount memory stake  =  stakes[ i ];
 
             if(  stake.amount == 0  )  revert Invalid( STAKE_AMOUNT, 0 );
 
-            bool did_already_stake_this_token  =  (  _bonds_stake_token_to_amount[ bond_id ][ stake.token ] != 0  );
-            if(  did_already_stake_this_token  )  revert Invalid( DUPLICATE_STAKE_TOKEN, uint256(uint160(address(stake.token))) );
+            // *SECURITY*  -  Revert on duplicate entries for the same token for easier bond execution later and to prevent front-end bugs when creating the bond.
+            for(  uint256 k = 0  ;  k < count_of_seen_tokens  ;  k++  )
+            {
+                if(  seen_tokens[ k ] == stake.token  )  revert Invalid( DUPLICATE_STAKE_TOKEN, uint256(uint160(address(stake.token))) );
+            }
+            seen_tokens[ count_of_seen_tokens ]  =  stake.token;
+            count_of_seen_tokens  =  count_of_seen_tokens + 1;
 
             uint actual_amount_staked  =  _transfer_from_and_get_actual_amount_delivered({
                 token:              stake.token,
