@@ -96,15 +96,12 @@ abstract contract Core is Storage, EIP712 {
 
         TokenAmount[] memory stakes  =  _load_bond_stakes( bond_id, bond.count_of_staked_tokens );
         
-        ( bool are_stakes_sufficient, IERC20 failing_token )  =  _does_bond_stakes_cover_all_individual_calls_stakes( stakes, execution_data.calls );
-        if(  are_stakes_sufficient == false  )
+        ( bool is_malformed, string memory failure_reason )  =  _is_bond_malformed( stakes, execution_data );
+        if(  is_malformed  )
         {
-            // *NOTE*  -  This is a malformed bond from the start (likely a calculation bug or a fee-on-transfer token). Since there is no possibility of a malicious 
+            // *NOTE*  -  This is a malformed bond from the start (likely a calculation bug, fee-on-transfer token, or incorrect limits). Since there is no possibility of an 
             //            attack here, we better just settle this bond returning the stakes to the user.
-            emit BondExecutionInsufficientStake({
-                bond_id:            bond_id,
-                failing_token:      address(failing_token)
-            });
+            emit BondExecutionFailed( bond_id, failure_reason );
         }
         else
         {
@@ -134,7 +131,18 @@ abstract contract Core is Storage, EIP712 {
         if(  calculated_commitment_proof != bond.commitment_proof  )    revert CommitmentProofMismatch( bond_id, bond.commitment_proof, calculated_commitment_proof );
     }
 
-    function _does_bond_stakes_cover_all_individual_calls_stakes( TokenAmount[] memory stakes, CallEntry[] calldata calls ) private pure returns ( bool are_stakes_sufficient, IERC20 failing_token )
+    function _is_bond_malformed( TokenAmount[] memory stakes, ExecutionData calldata execution_data ) private pure returns ( bool is_malformed, string memory failure_reason )
+    {
+        if(  execution_data.calls.length > Config.MAX_CALLS_PER_BOND  )         return ( true, MALFORMED_BOND_TOO_MANY_CALLS );
+        if(  execution_data.fundings.length > Config.MAX_FUNDINGS_PER_BOND  )   return ( true, MALFORMED_BOND_TOO_MANY_FUNDINGS );
+
+        bool are_stakes_sufficient  =  _does_bond_stakes_cover_all_individual_calls_stakes( stakes, execution_data.calls );
+        if(  are_stakes_sufficient == false  )  return ( true, MALFORMED_BOND_INSUFFICIENT_STAKE );
+
+        return ( false, "" );
+    }
+
+    function _does_bond_stakes_cover_all_individual_calls_stakes( TokenAmount[] memory stakes, CallEntry[] calldata calls ) private pure returns ( bool are_stakes_sufficient )
     {
         uint256[] memory sums  =  new uint256[]( stakes.length );
 
@@ -146,21 +154,21 @@ abstract contract Core is Storage, EIP712 {
                 if(  _call.stake.amount > 0  )
                 {
                     uint k  =  stakes.index_of( _call.stake.token );
-                    if(  k == TokenSearch.INDEX_NOT_FOUND  )  return ( false, _call.stake.token );
+                    if(  k == TokenSearch.INDEX_NOT_FOUND  )  return false;
 
                     // *SECURITY*  -  Check for overflow in the summing up.
                     uint256 new_sum  =  sums[ k ] + _call.stake.amount;
-                    if(  new_sum < sums[ k ]  )  return( false, _call.stake.token );
+                    if(  new_sum < sums[ k ]  )  return false;
 
                     // Check if sums of individual calls exceed what was staked.
-                    if(  new_sum > stakes[ k ].amount  )  return ( false, _call.stake.token );
+                    if(  new_sum > stakes[ k ].amount  )  return false;
                     
                     sums[ k ]  =  new_sum;
                 }
             }
         }
 
-        return  ( true, IERC20(address(0)) );
+        return true;
     }
 
     function _execute_calls( uint64 bond_id, address user, Bond memory bond, ExecutionData calldata execution_data ) internal

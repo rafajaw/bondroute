@@ -12,9 +12,11 @@ library Config {
 
     // Bond limits.
     uint256 internal constant MAX_STAKES_PER_BOND                       =   9;          // Maximum different tokens that can be staked per bond.
+    uint256 internal constant MAX_CALLS_PER_BOND                        =   9;          // Maximum calls that can be executed per bond.
+    uint256 internal constant MAX_FUNDINGS_PER_BOND                     =   9;          // Maximum fundings that can be provided per bond.
     // *NOTE*  -  We limit stakes because they write to persistent storage (expensive SSTORE operations).
-    //         -  Fundings and calls arrays don't need limits as they only use memory/calldata (cheap).
-    //         -  Gas limits naturally cap memory arrays, and users pay for their own execution costs.
+    //         -  We limit calls to prevent users from creating bonds that become unexecutable due to gas limits.
+    //         -  We limit fundings for consistent UX and to keep transaction signing manageable for users.
 
     // EIP-712 Domain Parameters.
     string internal constant EIP712_DOMAIN_NAME                         =   "BondRoute";

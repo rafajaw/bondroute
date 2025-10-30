@@ -15,6 +15,9 @@ string constant INVALID_CONTRACT_ADDRESS                    =   "Invalid contrac
 string constant CANT_CALL_ENTRY_POINT                       =   "Calling BondRoute_entry_point";
 string constant OUT_OF_GAS_OR_UNSPECIFIED_FAILURE           =   "Out of gas or unspecified failure";
 string constant OUT_OF_GAS_OR_NOT_BONDROUTEPROTECTED        =   "Out of gas or not BondRouteProtected";
+string constant MALFORMED_BOND_TOO_MANY_CALLS               =   "Too many calls";
+string constant MALFORMED_BOND_TOO_MANY_FUNDINGS            =   "Too many fundings";
+string constant MALFORMED_BOND_INSUFFICIENT_STAKE           =   "Insufficient stake";
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -24,8 +27,8 @@ string constant OUT_OF_GAS_OR_NOT_BONDROUTEPROTECTED        =   "Out of gas or n
 /// @dev Event fields are minimal and non `indexed` bc it is disproportionally cheaper to filter off-chain than to charge gas on every transaction.
 event BondCreated( uint64 bond_id, bytes21 commitment_proof, uint256 count_of_staked_tokens );
 event BondExecuted( uint64 bond_id, address user );
+event BondExecutionFailed( uint64 bond_id, string reason );
 event BondExecutionCallFailed( uint64 bond_id, uint256 call_index, bytes call_output );
-event BondExecutionInsufficientStake( uint64 bond_id, address failing_token );
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -74,10 +77,14 @@ struct CallEntry {
  *      1. User sees capital commitment first (fundings)
  *      2. Then operations to execute (calls)
  *      3. Finally privacy/security (secret)
+ *      
+ *      Array limits enforced during execution:
+ *      - fundings: Maximum Config.MAX_FUNDINGS_PER_BOND entries
+ *      - calls: Maximum Config.MAX_CALLS_PER_BOND entries
  */
 struct ExecutionData {
-    TokenAmount[] fundings;     // Capital commitment (can be empty)
-    CallEntry[] calls;          // Operations to execute atomically
+    TokenAmount[] fundings;     // Capital commitment (can be empty, max Config.MAX_FUNDINGS_PER_BOND)
+    CallEntry[] calls;          // Operations to execute atomically (max Config.MAX_CALLS_PER_BOND)
     bytes32 secret;             // Anti-bruteforce salt
 }
 
@@ -138,34 +145,21 @@ interface IUser {
      * @notice Execute a bond with target contract call and funding
      * @param bond_id The bond ID to execute
      * @param execution_data Bond execution data containing target contract, calldata, funding details, and secret
-     * @dev CRITICAL BEHAVIOR: Individual contract calls within the execution MAY FAIL without causing
-     *      the entire bond execution to revert. This design prioritizes user stake recovery over strict
-     *      atomicity. Failed calls emit `BondExecutionCallFailed` events for transparency, but execution
-     *      continues to maximize the chance of users recovering their staked funds.
+     * @dev LIMITS: Max Config.MAX_CALLS_PER_BOND calls, Config.MAX_FUNDINGS_PER_BOND fundings per bond.
      *      
-     *      BOND-PICKING PREVENTION: However, calls that fail with empty revert data (possible out-of-gas)
-     *      or explicitly revert with `PossiblyBondPicking` WILL cause the entire execution to revert.
-     *      This prevents attackers from selectively executing only profitable bonds.
+     *      APPROVALS: User must approve() BondRoute for all funding tokens as BondRoute will transferFrom during pulls.
      *      
-     *      EXECUTION FLOW:
-     *      1. Each call in `execution_data.calls` is executed sequentially
-     *      2. Normal reverts: Emit `BondExecutionCallFailed`, continue to next call
-     *      3. Empty revert data: Revert entire execution with `PossiblyBondPicking`
-     *      4. `PossiblyBondPicking` error: Propagate revert, fail entire execution
-     *      5. If execution completes (no bond-picking detected), transfer all funds and stakes to user
+     *      CAPITAL EFFICIENCY: When stake tokens match funding tokens, stakes are pushed to be consumed first.
+     *      This maximizes trading power - stakes get used during execution rather than returned unused.
      *      
-     *      STAKE RECOVERY: Stakes can ONLY be recovered if the entire `execute_bond` transaction succeeds.
-     *      Individual call failures do NOT prevent stake recovery - only bond-picking prevention does.
-     *      If execution reverts due to bond-picking detection, stakes remain LOCKED in BondRoute until
-     *      the user can retry with a valid execution that doesn't trigger bond-picking detection.
-     *      This design intentionally punishes attackers attempting selective execution.
+     *      MALFORMED BONDS: If validation fails, emits `BondExecutionFailed` and returns all stakes to user.
      *      
-     *      Reverts with error `BondNotFound` if `bond_id` does not exist.
-     *      Reverts with error `SameBlockExecute` if called in same block as bond creation.
-     *      Reverts with error `BondExpired` if called after the hard cap execution window.
-     *      Reverts with error `CommitmentProofMismatch` if `execution_data` doesn't match the original commitment.
-     *      Reverts with error `BondExecutionForbiddenCall` for invalid contract calls.
-     *      Reverts with error `PossiblyBondPicking` for suspected manipulation attacks.
+     *      BOND-PICKING PREVENTION: Individual calls may fail (emit `BondExecutionCallFailed`, execution continues).
+     *      However, empty revert data or `PossiblyBondPicking` errors revert the entire transaction, locking stakes
+     *      to prevent selective execution attacks.
+     *      
+     *      Reverts with error `BondNotFound`, `SameBlockExecute`, `BondExpired`, `CommitmentProofMismatch`,
+     *      `BondExecutionForbiddenCall`, or `PossiblyBondPicking` for various validation failures.
      */
     function execute_bond( uint64 bond_id, ExecutionData calldata execution_data ) external;
 

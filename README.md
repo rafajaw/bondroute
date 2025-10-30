@@ -216,7 +216,7 @@ Stop feeding the bots. Start using BondRoute.
 
 ## Multi-Call Bonds
 
-Execute multiple protected operations atomically.
+Execute multiple protected operations atomically (up to 9 calls and 9 fundings per bond).
 
 ```solidity
 // Example: Unstake then trade - different stake requirements per call
