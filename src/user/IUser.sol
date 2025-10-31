@@ -84,7 +84,7 @@ struct CallEntry {
  */
 struct ExecutionData {
     TokenAmount[] fundings;     // Capital commitment (can be empty, max Config.MAX_FUNDINGS_PER_BOND)
-    CallEntry[] calls;          // Operations to execute atomically (max Config.MAX_CALLS_PER_BOND)
+    CallEntry[] calls;          // Operations to execute sequentially (max Config.MAX_CALLS_PER_BOND)
     bytes32 secret;             // Anti-bruteforce salt
 }
 

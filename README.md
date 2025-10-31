@@ -9,7 +9,7 @@ Someone fucked up.
 
 ## Execute or Get Rekt
 
-We built the commit-reveal primitive that should have shipped with Ethereum. Hide your intent. Stake your conviction. Reveal when ready.
+We built the commit-reveal primitive that should have shipped with Ethereum. Hide your intent. Stake as required. Reveal when allowed.
 
 No committees. No governance. No "we'll fix it in v2."  
 Just immutable code that works.
@@ -55,20 +55,25 @@ contract YourDEX is BondRouteProtected {
 ```
 
 **The Flow:**
-1. **COMMIT** - User creates a bond with `create_bond()`
-   - Hash your `ExecutionData` (calls + funding + secret)
-   - Stake multiple tokens as collateral (up to 9 different tokens)
-   - Commitment visible, intent hidden
+1. **PLAN** - Prepare your strategy
+   - Choose contracts to call and operations to perform
+   - Check requirements with `BondRoute_get_execution_constraints()`
 
-2. **REVEAL** - User executes with `execute_bond()`
-   - Reveal your `ExecutionData` 
-   - BondRoute validates commitment match
-   - Calls your contracts atomically via `BondRoute_entry_point()`
+2. **COMMIT** - Create bond with `create_bond()`
+   - Hash your plan: `ExecutionData` (fundings + calls + secret)
+   - Only commitment hash visible on-chain
 
-3. **SETTLE** - Everything resolves or reverts
-   - Virtual escrow handles all transfers (LIFO)
-   - Negligible 0.01% fee on funds pulled/sent from virtual escrow
-   - Unused stake returns, or gets lost if you don't execute
+3. **WAIT** - Delay period
+   - Contracts may require specific time to execute
+
+4. **REVEAL** - Execute with `execute_bond()`
+   - Reveal your `ExecutionData` to prove commitment
+   - BondRoute executes calls sequentially
+   - Individual calls can fail without breaking execution
+
+5. **SETTLE** - Finalization
+   - Pending tokens at escrow and unused stakes return to you
+   - Miss your execution window? Lose your stakes
 
 ## Why Simple Commit-Reveal Isn't Enough
 
@@ -88,7 +93,10 @@ Without consequences, attackers create unlimited bonds and cherry-pick execution
 ## BondRoute's Solution: Economic Deterrence
 
 **Stake-to-Play:**
-Each bond requires tokens staked as collateral. Non-executed bonds forfeit their stakes.
+Each protected contract can require a stake as collateral. If you don't execute your bond, you lose the stake. Not all contracts require stakes - it's up to each protected contract to decide.
+
+**Where Stakes Go:**
+Forfeited stakes go to the BondRoute treasury. This isn't meant to be revenue - it's to prevent bond-picking attacks. Since BondRoute can't know when bonds should execute (hidden commit-reveal), there's a 101-day hard cap for cleanup. But most contracts set much shorter windows for their security needs.
 
 **Example: Auction Defense**
 1. Blind auction contract requires 10% stake of bid amount
@@ -142,6 +150,11 @@ function BondRoute_get_execution_constraints(
 
 Forget holding tokens. We track intentions.
 
+**Gas-Efficient Design:**
+- **Virtual Bookkeeping**: Pushed funds aren't transferred to BondRoute - we just update the books. Actual transfers only happen on pull/send, saving gas on intermediate transfers
+- **Transient Storage**: When supported (most chains), we use EIP-1153 transient storage - ~20x cheaper than regular storage
+- **XOR Addressing**: Storage slots use XOR operations instead of keccak256 for further gas savings
+
 ```solidity
 // Alice's contract pushes 1000 USDC (no fee, full 1000 available)
 BondRoute_push(USDC, 1000);
@@ -189,7 +202,7 @@ contract YourProtocol is BondRouteProtected {
 - Prevents bond-picking (can't create 100 bonds, execute only profitable)
 - Validates contracts implement `BondRoute_is_BondRouteProtected()`
 - Out-of-gas detection prevents selective execution
-- Stakes forfeit after 101 days. No mercy.
+- Miss execution windows defined by contracts? Stakes gone. No mercy.
 
 ## For Users Who Want Fair Markets
 
@@ -202,7 +215,7 @@ Stop feeding the bots. Start using BondRoute.
 
 2. **Wait 1+ blocks** (as target contracts require)  
 
-3. **Execute your bond** (atomic, protected)
+3. **Execute your bond** (sequential, protected)
    - Stakes become funding when tokens match (capital efficiency)
    - Fees collected when funds are pulled/sent during execution
 
@@ -216,7 +229,17 @@ Stop feeding the bots. Start using BondRoute.
 
 ## Multi-Call Bonds
 
-Execute multiple protected operations atomically (up to 9 calls and 9 fundings per bond).
+Execute multiple protected operations sequentially (up to 9 calls and 9 fundings per bond).
+
+**Why Multiple Calls?**
+- **Interdependent Executions**: Chain operations that depend on each other, like unstaking tokens and then swapping them
+- **Sponsored Execution**: May call to BondRoute's `send_funds()` function (the only BondRoute function callable from the calls array) to pay relayers or sponsors in ERC20 tokens for covering gas fees
+- **Resilient Execution**: Individual calls can fail (emit `BondExecutionCallFailed`) but execution continues to maximize stake recovery - stakes only get locked if execution appears malicious (out of gas or `PossiblyBondPicking` errors)
+
+**Why Fundings?**
+- **MEV Protection**: Users only approve BondRoute, not target contracts - MEV bots can't deduce intent from approvals. Without BondRoute, approving tokens to specific contracts reveals what you're about to do there
+- **Convenience**: Approve BondRoute once, not every app individually - they pull through BondRoute
+- **Capital Efficiency**: When stake token matches funding token, stakes get pushed to escrow first (LIFO) to be consumed during execution. Example: 1000 token swap with 10% stake (100 tokens) - set funding to 1000, BondRoute pushes 100 from stake + 900 from user, all 1000 available for trading
 
 ```solidity
 // Example: Unstake then trade - different stake requirements per call
@@ -246,7 +269,7 @@ bondroute.create_bond(commitment_proof, stakes, block.timestamp + 300);
 
 **How Stake Requirements Work:**
 - Each contract call specifies its own stake token and amount
-- User must stake enough of each required token across all calls
+- User must stake at least what each call requires
 - When stake token matches funding token, stakes become funding
 - Stakes consumed first (LIFO), maximize your trading power
 

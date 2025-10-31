@@ -144,7 +144,7 @@ interface IProvider {
      *      
      *      SPECIAL FEATURE: This is the ONLY function that can be called directly from the 
      *      `calls` array in ExecutionData. This enables paying relayers or other beneficiaries
-     *      atomically during a bond execution.
+     *      sequentially during a bond execution.
      *      
      *      Example relayer payment:
      *      - send_funds(USDC, 100 USDC, relayer) → transfers 99.99 USDC (100 - 0.01 fee), accumulates 0.01 USDC fee debt
