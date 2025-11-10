@@ -412,7 +412,7 @@ abstract contract Core is Storage, EIP712 {
             }
         }
 
-        return keccak256( abi.encode( hashes ) );  /// forge-lint: disable-line(asm-keccak256)  -  Array encoding must match EIP-712 format.
+        return keccak256( abi.encodePacked( hashes ) );  /// forge-lint: disable-line(asm-keccak256)  -  Array encoding must match EIP-712 format.
     }
     
     function _hash_fundings( TokenAmount[] calldata fundings ) internal pure returns ( bytes32 )
@@ -431,7 +431,7 @@ abstract contract Core is Storage, EIP712 {
             }
         }
 
-        return keccak256( abi.encode( hashes ) );  /// forge-lint: disable-line(asm-keccak256)  -  Array encoding must match EIP-712 format.
+        return keccak256( abi.encodePacked( hashes ) );  /// forge-lint: disable-line(asm-keccak256)  -  Array encoding must match EIP-712 format.
     }
 
     function _transfer_from_and_get_actual_amount_delivered( IERC20 token, address from, address to, uint256 amount ) internal returns ( uint256 )
