@@ -1,0 +1,38 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 1_000_000_000
+via_ir = true
+extra_output = ["ir", "irOptimized"]
+extra_output_files = ["ir", "irOptimized"]
+sizes = true
+gas_reports = ['*']
+remappings = [
+    "@BondRoute=src/",
+    "@BondRouteProtected=src/integrations/",
+    "@SmartReentrancyGuard=src/utils/",
+    "@EIP1153Detector=src/utils/eip1153/",
+    "@OpenZeppelin=lib/openzeppelin-contracts/contracts/",
+    "@test=test/",
+]
+
+# Invariant test configuration (stateful fuzzing)
+[invariant]
+runs = 32              # Number of test scenarios (down from 256)
+depth = 64             # Max calls per scenario (down from 500)
+fail_on_revert = false # Don't fail on expected reverts
+
+[lint]
+exclude_lints = [
+    "mixed-case-variable",
+    "mixed-case-function",
+    "screaming-snake-case-const",
+    "screaming-snake-case-immutable",
+    "unaliased-plain-import",
+    "pascal-case-struct",       # Allow custom struct naming (e.g., EIP712Domain)
+    "unsafe-typecast"           # Allow unsafe typecasts (validated at runtime in Storage.sol, safe literals in ValidationLib.sol)
+]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
