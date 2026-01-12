@@ -603,7 +603,7 @@ BondRoute is under public adversarial review prior to mainnet deployment.
 
 This is not a beta. The code under review is the code that will be deployed.
 
-**Commit under review:** `0xPLACEHOLDER`
+**Commit under review:** `0x2573d08a3d6343e8f99d4a04e56ad7f3280a4455`
 
 ### Bounty
 
